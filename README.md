@@ -2,6 +2,10 @@
 
 A web app that helps parents (with attorney support) build a custody schedule and instantly see what it means in practice — a calendar, and the underlying numbers a court cares about, like overnight counts, weekend splits, and how often the kids change households.
 
+![Parenting Plan Builder demo](docs/demo.gif)
+
+*A quick walkthrough: entering parents/kids, picking a schedule, the calendar, reassigning a single day, and the Summary/Holidays tabs.*
+
 ![Parenting Plan Builder screenshot](docs/screenshot.png)
 
 ## What it does
