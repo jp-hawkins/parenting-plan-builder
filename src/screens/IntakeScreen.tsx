@@ -56,6 +56,7 @@ function ParentRow({ idx }: { idx: ParentIdx }) {
       <div className="parent-fields">
         <input
           type="text"
+          className="parent-name-input"
           placeholder={`Parent ${idx === 0 ? "A" : "B"} name`}
           value={p.name}
           maxLength={40}

@@ -1,8 +1,10 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type {
-  AppState, DateRange, GuidedOption, ParentIdx, ParentRole, ScreenId, ThemeId, ToolId,
+  AppState, DateRange, DecisionCategory, DisputeResolution, GuidedOption, HolidayDateMode, HolidayTreatment,
+  ParentIdx, ParentRole, ScreenId, ThemeId, ToolId, Transportation,
 } from "../lib/types";
+import { defaultPlanDetails, MAX_DECISION_CATEGORIES, newCustomHoliday, newDecisionCategory } from "../lib/data";
 import { todayStr, uid, parseDateStr } from "../lib/utils";
 
 const STORAGE_KEY = "ppb-state-v2";
@@ -18,7 +20,7 @@ function defaultState(): AppState {
       { id: "p0", name: "", color: "terracotta", role: "" },
       { id: "p1", name: "", color: "slate", role: "" },
     ],
-    kids: [{ id: uid("kid"), name: "" }],
+    kids: [{ id: uid("kid"), name: "", age: "" }],
 
     template: { id: null, startDate: start, startParent: 0 },
 
@@ -27,14 +29,21 @@ function defaultState(): AppState {
     holidayCustomDates: {},
     holidayAlternateBaseYear: null,
     holidayAlternateStartParent: 0,
+    removedHolidayIds: [],
+    holidayTreatments: {},
+    holidayDateMode: {},
+    customHolidays: [],
 
     calendarViewMonth: start.slice(0, 7),
     summaryYear: parseDateStr(start).getFullYear(),
     holidayYear: parseDateStr(start).getFullYear(),
+    printCalendarStyle: "compact",
 
     guidedActive: false,
     guidedQuestionId: "start",
     editingHolidayKey: null,
+
+    planDetails: defaultPlanDetails(),
   };
 }
 
@@ -43,7 +52,11 @@ function loadState(): AppState {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultState();
     const parsed = JSON.parse(raw);
-    return Object.assign(defaultState(), parsed);
+    const merged: AppState = Object.assign(defaultState(), parsed);
+    // Backfill fields added after this state may have been saved (older schema).
+    merged.kids = merged.kids.map((k) => ({ ...k, age: k.age ?? "" }));
+    merged.planDetails = { ...defaultPlanDetails(), ...(parsed.planDetails ?? {}) };
+    return merged;
   } catch {
     return defaultState();
   }
@@ -57,6 +70,7 @@ export interface PlanActions {
   setParentRole: (idx: ParentIdx, role: ParentRole) => void;
   addKid: () => void;
   updateKid: (id: string, name: string) => void;
+  updateKidAge: (id: string, age: string) => void;
   removeKid: (id: string) => void;
   selectTemplate: (templateId: string) => void;
   setTemplateConfig: (patch: Partial<AppState["template"]>) => void;
@@ -67,12 +81,31 @@ export interface PlanActions {
   clearDayOverride: (dateStr: string) => void;
   setHolidayOverride: (key: string, parentIdx: ParentIdx | null) => void;
   setHolidayCustomRange: (key: string, range: DateRange) => void;
+  removeHoliday: (id: string) => void;
+  restoreHoliday: (id: string) => void;
+  setHolidayTreatment: (id: string, treatment: HolidayTreatment) => void;
+  setHolidayDateMode: (id: string, mode: HolidayDateMode) => void;
+  addCustomHoliday: (name: string) => void;
+  removeCustomHoliday: (id: string) => void;
   setCalendarMonth: (yyyymm: string) => void;
   shiftCalendarMonth: (delta: number) => void;
   setSummaryYear: (year: number) => void;
   setHolidayYear: (year: number) => void;
   setEditingHolidayKey: (key: string | null) => void;
+  setPrintCalendarStyle: (style: "compact" | "full") => void;
   resetPlan: () => void;
+
+  setCaseInfo: (patch: { county?: string; causeNumber?: string }) => void;
+  setHasLimitations: (value: boolean | null) => void;
+  setLimitationsExplanation: (text: string) => void;
+  setCustodian: (idx: ParentIdx | null) => void;
+  updateDecisionCategory: (id: string, patch: Partial<DecisionCategory>) => void;
+  addDecisionCategory: () => void;
+  removeDecisionCategory: (id: string) => void;
+  setDisputeResolution: (patch: Partial<DisputeResolution>) => void;
+  setTransportation: (patch: Partial<Transportation>) => void;
+  toggleProvision: (id: string) => void;
+  setOtherProvisions: (text: string) => void;
 }
 
 interface PlanContextValue {
@@ -117,11 +150,16 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       return { ...s, parents };
     }),
 
-    addKid: () => setState((s) => ({ ...s, kids: [...s.kids, { id: uid("kid"), name: "" }] })),
+    addKid: () => setState((s) => ({ ...s, kids: [...s.kids, { id: uid("kid"), name: "", age: "" }] })),
 
     updateKid: (id, name) => setState((s) => ({
       ...s,
       kids: s.kids.map((k) => (k.id === id ? { ...k, name } : k)),
+    })),
+
+    updateKidAge: (id, age) => setState((s) => ({
+      ...s,
+      kids: s.kids.map((k) => (k.id === id ? { ...k, age } : k)),
     })),
 
     removeKid: (id) => setState((s) => ({ ...s, kids: s.kids.filter((k) => k.id !== id) })),
@@ -172,6 +210,27 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       ...s, holidayCustomDates: { ...s.holidayCustomDates, [key]: range },
     })),
 
+    removeHoliday: (id) => setState((s) => ({
+      ...s, removedHolidayIds: s.removedHolidayIds.includes(id) ? s.removedHolidayIds : [...s.removedHolidayIds, id],
+    })),
+    restoreHoliday: (id) => setState((s) => ({
+      ...s, removedHolidayIds: s.removedHolidayIds.filter((h) => h !== id),
+    })),
+
+    setHolidayTreatment: (id, treatment) => setState((s) => ({
+      ...s, holidayTreatments: { ...s.holidayTreatments, [id]: treatment },
+    })),
+    setHolidayDateMode: (id, mode) => setState((s) => ({
+      ...s, holidayDateMode: { ...s.holidayDateMode, [id]: mode },
+    })),
+
+    addCustomHoliday: (name) => setState((s) => ({
+      ...s, customHolidays: [...s.customHolidays, newCustomHoliday(name)],
+    })),
+    removeCustomHoliday: (id) => setState((s) => ({
+      ...s, customHolidays: s.customHolidays.filter((h) => h.id !== id),
+    })),
+
     setCalendarMonth: (yyyymm) => setState((s) => ({ ...s, calendarViewMonth: yyyymm })),
     shiftCalendarMonth: (delta) => setState((s) => {
       const [y, m] = s.calendarViewMonth.split("-").map(Number);
@@ -182,8 +241,72 @@ export function PlanProvider({ children }: { children: ReactNode }) {
     setSummaryYear: (year) => setState((s) => ({ ...s, summaryYear: year })),
     setHolidayYear: (year) => setState((s) => ({ ...s, holidayYear: year })),
     setEditingHolidayKey: (key) => setState((s) => ({ ...s, editingHolidayKey: key })),
+    setPrintCalendarStyle: (style) => setState((s) => ({ ...s, printCalendarStyle: style })),
 
     resetPlan: () => setState(defaultState()),
+
+    setCaseInfo: (patch) => setState((s) => ({
+      ...s, planDetails: { ...s.planDetails, ...patch },
+    })),
+
+    setHasLimitations: (value) => setState((s) => ({
+      ...s, planDetails: { ...s.planDetails, hasLimitations: value },
+    })),
+
+    setLimitationsExplanation: (text) => setState((s) => ({
+      ...s, planDetails: { ...s.planDetails, limitationsExplanation: text },
+    })),
+
+    setCustodian: (idx) => setState((s) => ({
+      ...s, planDetails: { ...s.planDetails, custodianParentIdx: idx },
+    })),
+
+    updateDecisionCategory: (id, patch) => setState((s) => ({
+      ...s,
+      planDetails: {
+        ...s.planDetails,
+        decisionCategories: s.planDetails.decisionCategories.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+      },
+    })),
+
+    addDecisionCategory: () => setState((s) => {
+      if (s.planDetails.decisionCategories.length >= MAX_DECISION_CATEGORIES) return s;
+      return {
+        ...s,
+        planDetails: {
+          ...s.planDetails,
+          decisionCategories: [...s.planDetails.decisionCategories, newDecisionCategory()],
+        },
+      };
+    }),
+
+    removeDecisionCategory: (id) => setState((s) => ({
+      ...s,
+      planDetails: {
+        ...s.planDetails,
+        decisionCategories: s.planDetails.decisionCategories.filter((c) => c.id !== id),
+      },
+    })),
+
+    setDisputeResolution: (patch) => setState((s) => ({
+      ...s,
+      planDetails: { ...s.planDetails, disputeResolution: { ...s.planDetails.disputeResolution, ...patch } },
+    })),
+
+    setTransportation: (patch) => setState((s) => ({
+      ...s,
+      planDetails: { ...s.planDetails, transportation: { ...s.planDetails.transportation, ...patch } },
+    })),
+
+    toggleProvision: (id) => setState((s) => {
+      const selected = s.planDetails.selectedProvisions;
+      const next = selected.includes(id) ? selected.filter((p) => p !== id) : [...selected, id];
+      return { ...s, planDetails: { ...s.planDetails, selectedProvisions: next } };
+    }),
+
+    setOtherProvisions: (text) => setState((s) => ({
+      ...s, planDetails: { ...s.planDetails, otherProvisions: text },
+    })),
   }), []);
 
   const value = useMemo(() => ({ state, actions }), [state, actions]);

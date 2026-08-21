@@ -88,6 +88,21 @@ export function SummaryTool() {
         <div className="section-title">Holiday nights</div>
         <BarRow label="Holiday nights" valueA={s.holidayNights[0]} valueB={s.holidayNights[1]} />
       </div>
+
+      <div className="card">
+        <div className="section-title">Printout calendar</div>
+        <p className="section-sub">Choose how the calendar looks in the exported PDF.</p>
+        <div className="role-select mt-8">
+          <button type="button" className={`role-chip ${state.printCalendarStyle === "compact" ? "active" : ""}`}
+            onClick={() => actions.setPrintCalendarStyle("compact")}>
+            Compact (fits with summary)
+          </button>
+          <button type="button" className={`role-chip ${state.printCalendarStyle === "full" ? "active" : ""}`}
+            onClick={() => actions.setPrintCalendarStyle("full")}>
+            Full size (2 months/page)
+          </button>
+        </div>
+      </div>
     </>
   );
 }

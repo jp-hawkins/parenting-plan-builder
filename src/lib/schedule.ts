@@ -14,6 +14,11 @@ export function getTemplateParent(dateStr: string, templateCfg: TemplateConfig, 
 // ---- Holiday date-range computation ------------------------------------
 export function computeHolidayRange(def: HolidayDef, year: number, state: AppState): DateRange | null {
   const rule = def.rule;
+  if (rule.type !== "manual" && state.holidayDateMode[def.id] === "school-calendar") {
+    const custom = state.holidayCustomDates[`${def.id}-${year}`];
+    if (!custom) return null;
+    return { start: custom.start, end: custom.end || custom.start };
+  }
   let start: Date;
   switch (rule.type) {
     case "fixed":
@@ -46,6 +51,10 @@ export function computeHolidayRange(def: HolidayDef, year: number, state: AppSta
 }
 
 export function computeDefaultHolidayParent(def: HolidayDef, year: number, state: AppState): ParentIdx {
+  const treatment = state.holidayTreatments[def.id];
+  if (treatment && treatment.mode === "fixed-parent" && treatment.fixedParent !== null) {
+    return treatment.fixedParent;
+  }
   if (def.assignDefault && def.assignDefault.startsWith("role:")) {
     const role = def.assignDefault.split(":")[1];
     const idx = state.parents.findIndex((p) => p.role === role);
@@ -59,17 +68,29 @@ export function computeDefaultHolidayParent(def: HolidayDef, year: number, state
   const isEven = ((diff % 2) + 2) % 2 === 0;
   // Stagger each holiday's starting parent by its position in the list so a
   // single year isn't lopsided — every other named holiday favors each parent.
-  const phaseIdx = HOLIDAY_DEFS.findIndex((h) => h.id === def.id);
+  const allIds = [...state.customHolidays.map((h) => h.id), ...HOLIDAY_DEFS.map((h) => h.id)];
+  const phaseIdx = Math.max(0, allIds.indexOf(def.id));
   const holidayStartParent = (phaseIdx % 2 === 0 ? startParent : 1 - startParent) as ParentIdx;
   return (isEven ? holidayStartParent : 1 - holidayStartParent) as ParentIdx;
+}
+
+// Custom occasions are checked first (they're specific, user-added dates),
+// then built-ins in priority order, skipping anything the user removed.
+export function getEffectiveHolidayOrder(state: AppState): string[] {
+  const customIds = state.customHolidays.map((h) => h.id);
+  return [...customIds, ...HOLIDAY_PRIORITY].filter((id) => !state.removedHolidayIds.includes(id));
+}
+
+export function getHolidayDefById(id: string, state: AppState): HolidayDef | undefined {
+  return state.customHolidays.find((h) => h.id === id) ?? getHolidayDef(id);
 }
 
 // Find the holiday (if any) covering a given date. Checks candidate years
 // around the date's year since ranges like Winter Break cross Dec->Jan.
 export function resolveHolidayForDate(dateStr: string, state: AppState): HolidayMatch | null {
   const year = parseDateStr(dateStr).getFullYear();
-  for (const holidayId of HOLIDAY_PRIORITY) {
-    const def = getHolidayDef(holidayId);
+  for (const holidayId of getEffectiveHolidayOrder(state)) {
+    const def = getHolidayDefById(holidayId, state);
     if (!def) continue;
     for (const candidateYear of [year - 1, year, year + 1]) {
       const range = computeHolidayRange(def, candidateYear, state);

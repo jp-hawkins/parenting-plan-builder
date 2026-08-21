@@ -1,10 +1,8 @@
 import { isIntakeComplete, isScheduleComplete } from "../lib/derived";
 import { usePlan } from "../state/PlanContext";
-import { useToast } from "./Toast";
 
 export function BottomBar() {
   const { state, actions } = usePlan();
-  const { showToast } = useToast();
 
   if (state.screen === "intake") {
     return (
@@ -48,7 +46,7 @@ export function BottomBar() {
         <button
           type="button"
           className="btn btn-primary btn-block"
-          onClick={() => showToast("PDF export is coming soon — this demo build doesn't generate a file yet.")}
+          onClick={() => window.print()}
         >
           Export Plan as PDF
         </button>

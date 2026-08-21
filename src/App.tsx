@@ -1,4 +1,5 @@
 import { BottomBar } from "./components/BottomBar";
+import { PrintableReport } from "./components/PrintableReport";
 import { ProgressSteps } from "./components/ProgressSteps";
 import { ToastProvider } from "./components/Toast";
 import { Topbar } from "./components/Topbar";
@@ -23,6 +24,7 @@ function AppShell() {
         <ScreenBody />
       </div>
       <BottomBar />
+      <PrintableReport />
     </div>
   );
 }

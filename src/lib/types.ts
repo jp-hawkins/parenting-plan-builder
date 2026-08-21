@@ -2,7 +2,7 @@ export type ParentIdx = 0 | 1;
 export type ParentRole = "" | "mother" | "father";
 export type ThemeId = "clay" | "dusk" | "harvest";
 export type ScreenId = "intake" | "builder" | "tools";
-export type ToolId = "calendar" | "summary" | "holidays";
+export type ToolId = "calendar" | "summary" | "holidays" | "plan-details";
 
 export interface Parent {
   id: string;
@@ -14,6 +14,72 @@ export interface Parent {
 export interface Kid {
   id: string;
   name: string;
+  age: string;
+}
+
+// ------------------------------------------------------------
+// Plan Details — the non-schedule sections of the WA State
+// Parenting Plan (FL All Family 140) that aren't already covered
+// by the residential schedule / holiday tools.
+// ------------------------------------------------------------
+export interface DecisionCategory {
+  id: string;
+  label: string;
+  isFixed: boolean; // School/Educational and Healthcare rows can't be removed
+  mode: "joint" | "limited" | null;
+  limitedParent: ParentIdx | null;
+}
+
+export type DisputeMethod = "provider" | "court" | null;
+export type DisputeProviderType = "mediation" | "arbitration" | "counseling";
+export type DisputeNoticeMethod = "certified-mail" | "other";
+export type DisputeCostSplit = "fixed-percent" | "income-based" | "dispute-decided";
+
+export interface DisputeResolution {
+  method: DisputeMethod;
+  providerType: DisputeProviderType;
+  providerName: string;
+  noticeMethod: DisputeNoticeMethod;
+  noticeOther: string;
+  costSplit: DisputeCostSplit;
+  costPercent: [number, number];
+}
+
+export type HolidayTreatmentMode = "alternate" | "fixed-parent";
+export interface HolidayTreatment {
+  mode: HolidayTreatmentMode;
+  fixedParent: ParentIdx | null;
+}
+export type HolidayDateMode = "auto" | "school-calendar";
+
+export type ExchangeLocation = "each-home" | "school-daycare" | "other" | null;
+export type TransportResponsible = "picking-up" | "dropping-off" | null;
+
+export interface Transportation {
+  location: ExchangeLocation;
+  locationOther: string;
+  responsible: TransportResponsible;
+  otherDetails: string;
+}
+
+export interface PlanDetails {
+  county: string;
+  causeNumber: string;
+  hasLimitations: boolean | null;
+  limitationsExplanation: string;
+  custodianParentIdx: ParentIdx | null;
+  decisionCategories: DecisionCategory[];
+  disputeResolution: DisputeResolution;
+  transportation: Transportation;
+  selectedProvisions: string[];
+  otherProvisions: string;
+}
+
+export interface StandardProvision {
+  id: string;
+  category: string;
+  label: string;
+  text: string;
 }
 
 export interface TemplateConfig {
@@ -42,14 +108,21 @@ export interface AppState {
   holidayCustomDates: Record<string, DateRange>;
   holidayAlternateBaseYear: number | null;
   holidayAlternateStartParent: ParentIdx;
+  removedHolidayIds: string[];
+  holidayTreatments: Record<string, HolidayTreatment>;
+  holidayDateMode: Record<string, HolidayDateMode>;
+  customHolidays: HolidayDef[];
 
   calendarViewMonth: string; // 'YYYY-MM'
   summaryYear: number;
   holidayYear: number;
+  printCalendarStyle: "compact" | "full";
 
   guidedActive: boolean;
   guidedQuestionId: string;
   editingHolidayKey: string | null;
+
+  planDetails: PlanDetails;
 }
 
 export interface AssignedParent {

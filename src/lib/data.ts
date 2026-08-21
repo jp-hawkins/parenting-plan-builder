@@ -1,4 +1,7 @@
-import type { GuidedQuestion, HolidayDef, ParentColor, ScheduleTemplate } from "./types";
+import type {
+  DecisionCategory, GuidedQuestion, HolidayDef, ParentColor, PlanDetails, ScheduleTemplate, StandardProvision,
+} from "./types";
+import { uid } from "./utils";
 
 export const THEMES = ["clay", "dusk", "harvest"] as const;
 
@@ -125,4 +128,135 @@ export const HOLIDAY_PRIORITY = [
 
 export function getHolidayDef(id: string): HolidayDef | undefined {
   return HOLIDAY_DEFS.find((h) => h.id === id);
+}
+
+// Holidays whose dates can optionally be left to the school calendar
+// instead of a computed default (their exact dates vary district to district).
+export const SCHOOL_CALENDAR_ELIGIBLE = ["winter-break", "thanksgiving", "spring-break"];
+
+export function newCustomHoliday(name: string): HolidayDef {
+  return { id: uid("occasion"), name, rule: { type: "manual" }, assignDefault: "alternate" };
+}
+
+// ------------------------------------------------------------
+// Plan Details defaults (case info, decision-making, dispute
+// resolution, transportation — mirrors FL All Family 140)
+// ------------------------------------------------------------
+export function defaultDecisionCategories(): DecisionCategory[] {
+  return [
+    { id: "school", label: "School/Educational", isFixed: true, mode: null, limitedParent: null },
+    { id: "healthcare", label: "Healthcare (not emergency)", isFixed: true, mode: null, limitedParent: null },
+  ];
+}
+
+export const MAX_DECISION_CATEGORIES = 5;
+
+export function newDecisionCategory(): DecisionCategory {
+  return { id: uid("cat"), label: "", isFixed: false, mode: null, limitedParent: null };
+}
+
+// ------------------------------------------------------------
+// Standard "Other" provisions — common boilerplate clauses a
+// parent can opt into for section 10, grouped by topic. More
+// will be added over time, so categories may start out thin.
+// ------------------------------------------------------------
+export const STANDARD_PROVISIONS: StandardProvision[] = [
+  {
+    id: "flexibility",
+    category: "Plan Administration",
+    label: "Flexibility in Residential Schedule",
+    text: "The parties are encouraged to implement the residential schedule flexibly.",
+  },
+  {
+    id: "no-waiver",
+    category: "Plan Administration",
+    label: "No Waiver of Deviations",
+    text: "Acceptance or waiver of any deviations from the provisions of the Parenting Plan shall not constitute acceptance or waiver of subsequent deviations. The provisions of this plan shall remain in effect until modified by an appropriate written order entered by a court of competent jurisdiction.",
+  },
+  {
+    id: "conditioning-performance",
+    category: "Plan Administration",
+    label: "Conditioning Performance of Parenting Plan",
+    text: "Pursuant to RCW 26.09.160, an attempt by any parent, in any negotiation for the performance of this Parenting Plan, to condition one aspect of the Parenting Plan upon another, may be deemed to be in bad faith. If the court finds that a parent acted in bad faith in an attempt to condition parental functions, in a refusal to perform the duties provided in the Parenting Plan, or in the hindrance of performance of the other parent, the court may punish that conduct by a private award or other remedies including criminal or civil contempt and attorney's fees.",
+  },
+  {
+    id: "telephone",
+    category: "Communication",
+    label: "Telephone Access",
+    text: "The child(ren) shall have liberal telephone privileges with the parent with whom the child(ren) is/are not then residing (or vacationing), without interference of the other parent. Both parents shall make all reasonable efforts to ensure the child(ren) understand how to make phone calls to the other parent. Neither parent may monitor the other parent's phone conversations with the child(ren).",
+  },
+  {
+    id: "no-derogatory-comments",
+    category: "Co-Parenting Conduct",
+    label: "No Derogatory Comments",
+    text: "Neither parent shall make derogatory comments about the other parent or allow anyone else to do the same in the child(ren)'s presence. Neither parent shall allow or encourage the child(ren) to make derogatory comments about the other parent. Each parent agrees to exert every reasonable effort to promote the emotions of affection, love, and respect between the child(ren) and the other parent. Each parent agrees to refrain from words or conduct, and both parents agree to discourage other persons from uttering words or engaging in conduct, which would have a tendency to estrange the child(ren) from the other parent, to damage the opinion of the child(ren) as to the other parent, or which would impair the natural development of the child(ren)'s love and respect for the other parent.",
+  },
+  {
+    id: "respect-parenting-style",
+    category: "Co-Parenting Conduct",
+    label: "Respect for Parenting Style, Privacy & Authority",
+    text: "Each parent agrees to honor one another's parenting style, privacy and authority. Neither parent shall interfere in the parenting style of the other nor shall either parent make plans or arrangements that would impinge upon the other parent's authority or time with the child(ren) without the express agreement of the other. Each parent shall encourage the child(ren) to discuss her grievance against a parent directly with the parent in question. It is the intent of both parents to encourage direct parent-child bonding and communication.",
+  },
+  {
+    id: "religion",
+    category: "Religion",
+    label: "Religion",
+    text: "Each parent shall be entitled to have the child(ren) participate with him/her in his/her religious activities. Neither parent shall disparage the other parent's religious activities or attempt to sway the child(ren) to his/her respective religious or philosophical viewpoint.",
+  },
+  {
+    id: "emergency-contact",
+    category: "Safety & Notice",
+    label: "Emergency Contact Number and Address",
+    text: "Each parent will keep the other informed at all times of emergency telephone contact numbers and the residential address of the child(ren).",
+  },
+  {
+    id: "away-from-residence",
+    category: "Safety & Notice",
+    label: "Child(ren) Away from Residence",
+    text: "Each parent will inform the other when that parent plans to be away from his or her residence with the child(ren) for more than two nights. The information to be provided should include duration of the period, and the name(s), address(es), and telephone number(s) of the destination(s).",
+  },
+];
+
+export function getStandardProvision(id: string): StandardProvision | undefined {
+  return STANDARD_PROVISIONS.find((p) => p.id === id);
+}
+
+export function getProvisionCategories(): string[] {
+  const seen: string[] = [];
+  for (const p of STANDARD_PROVISIONS) {
+    if (!seen.includes(p.category)) seen.push(p.category);
+  }
+  return seen;
+}
+
+export function getProvisionsByCategory(category: string): StandardProvision[] {
+  return STANDARD_PROVISIONS.filter((p) => p.category === category);
+}
+
+export function defaultPlanDetails(): PlanDetails {
+  return {
+    county: "",
+    causeNumber: "",
+    hasLimitations: null,
+    limitationsExplanation: "",
+    custodianParentIdx: null,
+    decisionCategories: defaultDecisionCategories(),
+    disputeResolution: {
+      method: null,
+      providerType: "mediation",
+      providerName: "",
+      noticeMethod: "certified-mail",
+      noticeOther: "",
+      costSplit: "fixed-percent",
+      costPercent: [50, 50],
+    },
+    selectedProvisions: [],
+    transportation: {
+      location: null,
+      locationOther: "",
+      responsible: null,
+      otherDetails: "",
+    },
+    otherProvisions: "",
+  };
 }
